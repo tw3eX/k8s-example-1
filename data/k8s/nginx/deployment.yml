@@ -1,0 +1,65 @@
+apiVersion: apps/v1beta2 # for versions before 1.8.0 use apps/v1beta1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  # selector defaults to template's labels
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      imagePullSecrets:
+        - name: docker-hub
+      initContainers:
+      - name: init-crm
+        image: GROUP/crm-code:latest
+        command: ['mv', '/crm-code', '/vol-tmp' ]
+        volumeMounts:
+        - mountPath: /vol-tmp
+          name: vol-code
+      terminationGracePeriodSeconds: 5
+      volumes:
+      - name: nginx
+        configMap:
+          name: nginx
+      - name: vol-code
+        emptyDir: {}
+      containers:
+      - name: nginx
+        image: danday74/nginx-lua
+        command: ["sh", "-c", '
+          mkdir -p  /var/lib/nginx/cache/all &&
+          chown -R www-data /var/lib/nginx/cache/all &&
+          chmod 700 /var/lib/nginx/cache/all &&
+
+          mkdir -p  /var/lib/nginx/cache/fpm &&
+          chown -R www-data /var/lib/nginx/cache/fpm &&
+          chmod 700 /var/lib/nginx/cache/fpm && 
+          nginx -g "daemon off;"
+          ' ]
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        imagePullPolicy: "Always"
+        volumeMounts:
+          - name: nginx
+            mountPath: /nginx/conf
+            readOnly: true
+          - name: vol-code
+            mountPath: /var/www

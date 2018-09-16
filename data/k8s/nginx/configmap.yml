@@ -1,0 +1,342 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx
+data:
+  # Adding new entries here will make them appear as files in the deployment.
+  # Please update k8s.io/k8s.io/README.md when you update this file
+  nginx.conf: |
+      # nginx Configuration File
+      # http://wiki.nginx.org/Configuration
+
+      # Run as a less privileged user for security reasons.
+      #user www-data;
+
+      # The maximum number of connections for Nginx is calculated by:
+      # max_clients = worker_processes * worker_connections
+      worker_processes auto;
+
+      # Maximum open file descriptors per process;
+      # should be > worker_connections.
+      worker_rlimit_nofile 8192;
+
+      # Process needs to run in foreground within container
+      #daemon off;
+
+      events {
+        # When you need > 8000 * cpu_cores connections, you start optimizing your OS,
+        # and this is probably the point at which you hire people who are smarter than
+        # you, as this is *a lot* of requests.
+        worker_connections 64000;
+        multi_accept on;
+        use epoll;
+      }
+
+      pid        /var/run/nginx.pid;
+
+      http {
+
+        # Hide nginx version information.
+        server_tokens off;
+
+        # Define the MIME types for files.
+        include       /nginx/conf/mime.types;
+        default_type  application/octet-stream;
+
+        # Update charset_types due to updated mime.types
+        charset_types text/xml text/plain text/vnd.wap.wml application/x-javascript application/rss+xml text/css application/javascript application/json;
+
+        # Format to use in log files
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+
+        # How long to allow each connection to stay idle; longer values are better
+        # for each individual client, particularly for SSL, but means that worker
+        # connections are tied up longer. (Default: 65)
+        keepalive_timeout 65;
+
+        client_max_body_size 128m;
+
+        # Speed up file transfers by using sendfile() to copy directly
+        # between descriptors rather than using read()/write().
+        sendfile        on;
+
+        # Tell Nginx not to send out partial frames; this increases throughput
+        # since TCP frames are filled up before being sent out. (adds TCP_CORK)
+        tcp_nopush      on;
+
+        # Tell Nginx to enable the Nagle buffering algorithm for TCP packets, which
+        # collates several smaller packets together into one larger packet, thus saving
+        # bandwidth at the cost of a nearly imperceptible increase to latency. (removes TCP_NODELAY)
+        tcp_nodelay     off;
+
+
+        # Compression
+
+        # Enable Gzip compressed.
+        gzip on;
+
+        # Enable compression both for HTTP/1.0 and HTTP/1.1 (required for CloudFront).
+        gzip_http_version  1.0;
+
+        # Compression level (1-9).
+        # 5 is a perfect compromise between size and cpu usage, offering about
+        # 75% reduction for most ascii files (almost identical to level 9).
+        gzip_comp_level    5;
+
+        # Don't compress anything that's already small and unlikely to shrink much
+        # if at all (the default is 20 bytes, which is bad as that usually leads to
+        # larger files after gzipping).
+        gzip_min_length    256;
+
+        # Compress data even for clients that are connecting to us via proxies,
+        # identified by the "Via" header (required for CloudFront).
+        gzip_proxied       any;
+
+        # Tell proxies to cache both the gzipped and regular version of a resource
+        # whenever the client's Accept-Encoding capabilities header varies;
+        # Avoids the issue where a non-gzip capable client (which is extremely rare
+        # today) would display gibberish if their proxy gave them the gzipped version.
+        gzip_vary          on;
+
+        # Compress all output labeled with one of the following MIME-types.
+        gzip_types
+          application/atom+xml
+          application/javascript
+          application/json
+          application/rss+xml
+          application/vnd.ms-fontobject
+          application/x-font-ttf
+          application/x-web-app-manifest+json
+          application/xhtml+xml
+          application/xml
+          font/opentype
+          image/svg+xml
+          image/x-icon
+          text/css
+          text/plain
+          text/x-component;
+        # text/html is always compressed by HttpGzipModule
+
+
+        # This should be turned on if you are going to have pre-compressed copies (.gz) of
+        # static files available. If not it should be left off as it will cause extra I/O
+        # for the check. It is best if you enable this in a location{} block for
+        # a specific directory, or on an individual server{} level.
+        # gzip_static on;
+
+        # Protect against the BEAST attack by preferring RC4-SHA when using SSLv3 and TLS protocols.
+        # Note that TLSv1.1 and TLSv1.2 are immune to the beast attack but only work with OpenSSL v1.0.1 and higher and has limited client support.
+        # Ciphers set to best allow protection from Beast, while providing forwarding secrecy, as defined by Mozilla - https://wiki.mozilla.org/Security/Server_Side_TLS#Nginx
+        #ssl_protocols              SSLv3 TLSv1 TLSv1.1 TLSv1.2;
+        #ssl_ciphers                ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA:DHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-ECDSA-RC4-SHA:AES128:AES256:RC4-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!3DES:!MD5:!PSK;
+        #ssl_prefer_server_ciphers  on;
+
+        # Optimize SSL by caching session parameters for 10 minutes. This cuts down on the number of expensive SSL handshakes.
+        # The handshake is the most CPU-intensive operation, and by default it is re-negotiated on every new/parallel connection.
+        # By enabling a cache (of type "shared between all Nginx workers"), we tell the client to re-use the already negotiated state.
+        # Further optimization can be achieved by raising keepalive_timeout, but that shouldn't be done unless you serve primarily HTTPS.
+        #ssl_session_cache    shared:SSL:10m; # a 1mb cache can hold about 4000 sessions, so we can hold 40000 sessions
+        #ssl_session_timeout  10m;
+
+        # This default SSL certificate will be served whenever the client lacks support for SNI (Server Name Indication).
+        # Make it a symlink to the most important certificate you have, so that users of IE 8 and below on WinXP can see your main site without SSL errors.
+        #ssl_certificate      /etc/nginx/default_ssl.crt;
+        #ssl_certificate_key  /etc/nginx/default_ssl.key;
+
+        #Cache
+        #proxy_cache_path /var/lib/nginx/cache/all levels=1:2 keys_zone=all:32m max_size=1g;
+        fastcgi_cache_path /var/lib/nginx/cache/fpm levels=1:2 keys_zone=fcgi:32m max_size=1g;
+        fastcgi_cache_key "$scheme$request_method$host$request_uri";
+
+        include /nginx/conf/default.conf;
+
+
+      }
+  default.conf: |
+      server {
+         listen 1000 default_server;
+
+         root /var/www/crm-code/public;
+         index index.php index.html index.htm;
+
+         server_name crm.local;
+
+         location / {
+             try_files $uri $uri/ /index.php?$query_string;
+         }
+
+         location ~ \.php$ {
+
+         if ($request_method = 'OPTIONS') {
+                 add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+                 add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                 add_header 'Access-Control-Allow-Credentials' 'true' always;
+                 #
+                 # Custom headers and headers various browsers *should* be OK with but aren't
+                 #
+                 add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range,Access-Control-Allow-Credentials' always;
+                 #
+                 # Tell client that this pre-flight info is valid for 20 days
+                 #
+                 add_header 'Access-Control-Max-Age' 1728000 always;
+                 add_header 'Content-Type' 'text/plain; charset=utf-8' always;
+                 add_header 'Content-Length' 0 always;
+                 return 204;
+              }
+              if ($request_method = 'POST') {
+                 add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+                 add_header 'Access-Control-Allow-Credentials' 'true' always;
+                 add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS always';
+                 add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range,Access-Control-Allow-Credentials' always;
+                 add_header 'Access-Control-Expose-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range,Access-Control-Allow-Credentials' always;
+              }
+              if ($request_method = 'GET') {
+                 add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+                 add_header 'Access-Control-Allow-Credentials' 'true' always;
+                 add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                 add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range,Access-Control-Allow-Credentials' always;
+                 add_header 'Access-Control-Expose-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range,Access-Control-Allow-Credentials' always;
+              }
+
+             try_files $uri /index.php =404;
+             fastcgi_split_path_info ^(.+\.php)(/.+)$;
+             fastcgi_pass php:9000;
+             fastcgi_index index.php;
+             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+             include fastcgi_params;
+         }
+      }
+      
+  mime.types: |
+    types {
+      # Audio
+        audio/midi                            mid midi kar;
+        audio/mp4                             aac f4a f4b m4a;
+        audio/mpeg                            mp3;
+        audio/ogg                             oga ogg;
+        audio/x-realaudio                     ra;
+        audio/x-wav                           wav;
+
+      # Images
+        image/bmp                             bmp;
+        image/gif                             gif;
+        image/jpeg                            jpeg jpg;
+        image/png                             png;
+        image/tiff                            tif tiff;
+        image/vnd.wap.wbmp                    wbmp;
+        image/webp                            webp;
+        image/x-icon                          ico cur;
+        image/x-jng                           jng;
+
+      # JavaScript
+        application/javascript                js;
+        application/json                      json;
+
+      # Manifest files
+        application/x-web-app-manifest+json   webapp;
+        text/cache-manifest                   manifest appcache;
+
+      # Microsoft Office
+        application/msword                                                         doc;
+        application/vnd.ms-excel                                                   xls;
+        application/vnd.ms-powerpoint                                              ppt;
+        application/vnd.openxmlformats-officedocument.wordprocessingml.document    docx;
+        application/vnd.openxmlformats-officedocument.spreadsheetml.sheet          xlsx;
+        application/vnd.openxmlformats-officedocument.presentationml.presentation  pptx;
+
+      # Video
+        video/3gpp                            3gpp 3gp;
+        video/mp4                             mp4 m4v f4v f4p;
+        video/mpeg                            mpeg mpg;
+        video/ogg                             ogv;
+        video/quicktime                       mov;
+        video/webm                            webm;
+        video/x-flv                           flv;
+        video/x-mng                           mng;
+        video/x-ms-asf                        asx asf;
+        video/x-ms-wmv                        wmv;
+        video/x-msvideo                       avi;
+
+      # Web feeds
+        application/xml                       atom rdf rss xml;
+
+      # Web fonts
+        application/font-woff                 woff;
+        application/vnd.ms-fontobject         eot;
+        application/x-font-ttf                ttc ttf;
+        font/opentype                         otf;
+        image/svg+xml                         svg svgz;
+
+      # Other
+        application/java-archive              jar war ear;
+        application/mac-binhex40              hqx;
+        application/pdf                       pdf;
+        application/postscript                ps eps ai;
+        application/rtf                       rtf;
+        application/vnd.wap.wmlc              wmlc;
+        application/xhtml+xml                 xhtml;
+        application/vnd.google-earth.kml+xml  kml;
+        application/vnd.google-earth.kmz      kmz;
+        application/x-7z-compressed           7z;
+        application/x-chrome-extension        crx;
+        application/x-opera-extension         oex;
+        application/x-xpinstall               xpi;
+        application/x-cocoa                   cco;
+        application/x-java-archive-diff       jardiff;
+        application/x-java-jnlp-file          jnlp;
+        application/x-makeself                run;
+        application/x-perl                    pl pm;
+        application/x-pilot                   prc pdb;
+        application/x-rar-compressed          rar;
+        application/x-redhat-package-manager  rpm;
+        application/x-sea                     sea;
+        application/x-shockwave-flash         swf;
+        application/x-stuffit                 sit;
+        application/x-tcl                     tcl tk;
+        application/x-x509-ca-cert            der pem crt;
+        application/x-bittorrent              torrent;
+        application/zip                       zip;
+
+        application/octet-stream              bin exe dll;
+        application/octet-stream              deb;
+        application/octet-stream              dmg;
+        application/octet-stream              iso img;
+        application/octet-stream              msi msp msm;
+        application/octet-stream              safariextz;
+
+        text/css                              css;
+        text/html                             html htm shtml;
+        text/mathml                           mml;
+        text/plain                            txt;
+        text/vnd.sun.j2me.app-descriptor      jad;
+        text/vnd.wap.wml                      wml;
+        text/vtt                              vtt;
+        text/x-component                      htc;
+        text/x-vcard                          vcf;
+    }
+  fastcgi_params: |
+    fastcgi_param  QUERY_STRING       $query_string;
+    fastcgi_param  REQUEST_METHOD     $request_method;
+    fastcgi_param  CONTENT_TYPE       $content_type;
+    fastcgi_param  CONTENT_LENGTH     $content_length;
+
+    fastcgi_param  SCRIPT_NAME        $fastcgi_script_name;
+    fastcgi_param  REQUEST_URI        $request_uri;
+    fastcgi_param  DOCUMENT_URI       $document_uri;
+    fastcgi_param  DOCUMENT_ROOT      $document_root;
+    fastcgi_param  SERVER_PROTOCOL    $server_protocol;
+    fastcgi_param  HTTPS              $https if_not_empty;
+
+    fastcgi_param  GATEWAY_INTERFACE  CGI/1.1;
+    fastcgi_param  SERVER_SOFTWARE    nginx/$nginx_version;
+
+    fastcgi_param  REMOTE_ADDR        $remote_addr;
+    fastcgi_param  REMOTE_PORT        $remote_port;
+    fastcgi_param  SERVER_ADDR        $server_addr;
+    fastcgi_param  SERVER_PORT        $server_port;
+    fastcgi_param  SERVER_NAME        $server_name;
+
+    # PHP only, required if PHP was built with --enable-force-cgi-redirect
+    fastcgi_param  REDIRECT_STATUS    200;

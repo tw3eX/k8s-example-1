@@ -1,0 +1,62 @@
+apiVersion: apps/v1beta2 # for versions before 1.8.0 use apps/v1beta1
+# apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-fpm
+  labels:
+    app: php-fpm
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: php-fpm
+  template:
+    metadata:
+      name: php-fpm
+      labels:
+        app: php-fpm
+    spec:
+      imagePullSecrets:
+        - name: docker-hub
+      initContainers:
+      - name: init-crm
+        image: GROUP/crm-code:latest
+        command: ['sh', '-c', 'mv /crm-code /vol-tmp && chmod -R 777 /vol-tmp' ]
+        volumeMounts:
+        - mountPath: /vol-tmp
+          name: vol-code
+      containers:
+      - name: php-fpm
+        image: GROUP/php-fpm:latest
+        command: ['sh', '-c', '/usr/local/bin/docker-entrypoint.sh' ]
+        env:
+        - name: DATABASE_HOST
+          value: "stolon-proxy"
+        - name: DATABASE_NAME
+          value: "crm"
+        - name: DATABASE_USER
+          value: "stolon"
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: global-postgres-stolon
+              key: pg_su_password
+        - name: REDIS_HOST
+          value: "redis"
+        ports:
+        - name: php
+          containerPort: 9000
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1536Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        volumeMounts:
+        - name: vol-code
+          mountPath: /var/www
+        imagePullPolicy: "Always"
+      volumes:
+      - name: vol-code
+        emptyDir: {}
