@@ -1,0 +1,26 @@
+version: '2.1'
+services:
+  cluster-main:
+    container_name: cluster.com
+    image: cluster.com
+    user: root
+    stdin_open: true
+    volumes:
+      - ./data:/data
+      - ./.ssh:/root/.ssh
+      - ./.kube:/root/.kube
+      - ./.aws:/root/.aws
+
+  cluster-proxy:
+    container_name: cluster.com-kubectl-proxy
+    image: cluster.com
+    user: root
+    entrypoint: kubectl proxy --address='0.0.0.0' --port=8001 --accept-hosts='.*'
+    ports:
+      - "8001:8001"
+    stdin_open: true
+    volumes:
+      - ./data:/data
+      - ./.ssh:/root/.ssh
+      - ./.kube:/root/.kube
+      - ./.aws:/root/.aws
